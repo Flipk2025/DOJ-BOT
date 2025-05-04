@@ -133,101 +133,85 @@ class TicketDropdownView(discord.ui.View):
 		super().__init__(timeout=None)
 		self.add_item(TicketDropdown())
 
-class TicketSystem(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
+class TicketModal(discord.ui.Modal):
+	def __init__(self, topic_key):
+		title = f"{TICKET_TYPES[topic_key]['label'][:45]}"  # Ograniczenie do 45 znaków
+		super().__init__(title=title)
+		self.topic_key = topic_key
+		self.inputs = []
+		for i, (label, placeholder, required) in enumerate(TICKET_TYPES[topic_key]["fields"]):
+			if i >= 5:
+				break  # Discord nie pozwala na więcej niż 5 pól w modalu
+			inp = discord.ui.TextInput(label=label, placeholder=placeholder, required=required)
+			self.inputs.append(inp)
+			self.add_item(inp)
 
-    @commands.Cog.listener()
-    async def on_ready(self):
-        channel = self.bot.get_channel(TICKET_CHANNEL_ID)
-        if not channel:
-            return
-        # Pobierz wiadomości jako listę
-        msgs = [msg async for msg in channel.history(limit=10)]
-        if any(msg.author == self.bot.user for msg in msgs):
-            return
-        embed = discord.Embed(
-            title="🎫 Otwórz zgłoszenie",
-            description="Wybierz temat zgłoszenia", color=discord.Color.blurple()
-        )
-        options = [discord.SelectOption(label=topic) for topic in guild_ticket_config.keys()]
-        view = discord.ui.View(timeout=None)
-        view.add_item(discord.ui.Select(
-            placeholder="Wybierz temat...",
-            options=options,
-            custom_id="ticket_topic_select",
-            min_values=1, max_values=1
-        ))
-        await channel.send(embed=embed, view=view)
+	async def on_submit(self, interaction: discord.Interaction):
+		guild = interaction.guild
+		category = guild.get_channel(TICKET_CATEGORY_ID)
+		cfg = TICKET_TYPES[self.topic_key]
 
-    @commands.Cog.listener()
-    async def on_interaction(self, interaction: discord.Interaction):
-        custom_id = interaction.data.get('custom_id')
-        if custom_id == 'ticket_topic_select':
-            topic = interaction.data['values'][0]
-            config = guild_ticket_config.get(topic)
-            if not config:
-                await interaction.response.send_message("Nieznany temat.", ephemeral=True)
-                return
-            class DynamicModal(discord.ui.Modal, title=f"Zgłoszenie: {topic}"):
-                def __init__(self):
-                    super().__init__()
-                    for field in config['fields']:
-                        self.add_item(discord.ui.TextInput(
-                            custom_id=field['custom_id'], label=field['label'], style=field['style'], required=True
-                        ))
-            # zapisz temat
-            self.bot._current_ticket_topic = topic
-            await interaction.response.send_modal(DynamicModal())
-            return
+		# Budowanie overwrite permissions
+		overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False)}
+		# Zawsze dodaj role VIEWER_ROLE_ID (tylko czytanie) i WRITER_ROLE_ID
+		overwrites[guild.get_role(VIEWER_ROLE_ID)] = discord.PermissionOverwrite(view_channel=True, send_messages=False)
+		overwrites[guild.get_role(WRITER_ROLE_ID)] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
+		# Role handler:
+		for role_id in cfg['handler_roles']:
+			overwrites[guild.get_role(role_id)] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
+		# Role viewer:
+		for role_id in cfg['viewer_roles']:
+			overwrites[guild.get_role(role_id)] = discord.PermissionOverwrite(view_channel=True, send_messages=False)
+		# Użytkownik:
+		overwrites[interaction.user] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
 
-        # Obsługa przycisków
-        if custom_id in ('take_ticket', 'close_ticket'):
-            topic = getattr(self.bot, '_current_ticket_topic', None)
-            config = guild_ticket_config.get(topic)
-            if not config:
-                await interaction.response.send_message("Brak tematu zgłoszenia.", ephemeral=True)
-                return
-            allowed_role = config['role_id']
-            if allowed_role not in [r.id for r in interaction.user.roles]:
-                await interaction.response.send_message("Brak uprawnień.", ephemeral=True)
-                return
-            channel = interaction.channel
-            if custom_id == 'take_ticket':
-                await channel.send(f"🔔 Zgłoszenie przejął: {interaction.user.mention}")
-                await interaction.response.defer()
-                return
-            if custom_id == 'close_ticket':
-                await channel.send("✅ Zgłoszenie zamknięte.")
-                perms = channel.overwrites
-                perms[channel.guild.default_role] = discord.PermissionOverwrite(view_channel=False)
-                await channel.edit(overwrites=perms)
-                await interaction.response.defer()
-                return
+		# Tworzenie kanału ticket
+		channel_name = f"ticket-{interaction.user.name}".replace(" ", "-").lower()
+		ticket_channel = await guild.create_text_channel(
+			name=channel_name,
+			category=category,
+			overwrites=overwrites,
+			topic=f"{cfg['label']} zgłoszenie od {interaction.user.name}"
+		)
 
-    @commands.Cog.listener()
-    async def on_modal_submit(self, interaction: discord.Interaction):
-        topic = getattr(self.bot, '_current_ticket_topic', None)
-        config = guild_ticket_config.get(topic)
-        category = interaction.guild.get_channel(TICKET_CATEGORY_ID)
-        overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True)
-        }
-        overwrites[interaction.guild.get_role(config['role_id'])] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
-        ticket_channel = await interaction.guild.create_text_channel(
-            name=f"ticket-{interaction.user.name}", category=category, overwrites=overwrites
-        )
-        desc = "\n".join(
-            f"**{field['label']}:** {interaction.data['components'][i]['components'][0]['value']}"
-            for i, field in enumerate(config['fields'])
-        )
-        embed = discord.Embed(title=f"Nowe zgłoszenie: {topic}", description=desc, color=discord.Color.green())
-        view = discord.ui.View(timeout=None)
-        view.add_item(discord.ui.Button(label="Przejmij Zgłoszenie", style=discord.ButtonStyle.green, custom_id="take_ticket"))
-        view.add_item(discord.ui.Button(label="Zamknij Zgłoszenie", style=discord.ButtonStyle.red, custom_id="close_ticket"))
-        await ticket_channel.send(content=f"{interaction.user.mention} <@&{config['role_id']}", embed=embed, view=view)
-        await interaction.response.send_message(f"Utworzono kanał: {ticket_channel.mention}", ephemeral=True)
+		# Przygotowanie embed i view kontrolnego
+		embed_desc = "\n".join(f"**{inp.label}:** {inp.value}" for inp in self.inputs)
+		view = TicketControlView(cfg['handler_roles'] + [WRITER_ROLE_ID])
+		embed = discord.Embed(
+			title="📩 Nowe zgłoszenie",
+			description=embed_desc,
+			color=discord.Color.green()
+		)
+		mentions = f"{interaction.user.mention} | " + " ".join(f"<@&{rid}>" for rid in cfg['handler_roles'])
+		await ticket_channel.send(content=mentions, embed=embed, view=view)
+		await interaction.response.send_message(f"✅ Zgłoszenie utworzone: {ticket_channel.mention}", ephemeral=True)
+
+class TicketControlView(discord.ui.View):
+	def __init__(self, allowed_roles):
+		super().__init__(timeout=None)
+		self.allowed_roles = allowed_roles
+		self.claimed_by = None
+
+	@discord.ui.button(label="Przejmij zgłoszenie", style=discord.ButtonStyle.success)
+	async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
+		if not any(role.id in self.allowed_roles for role in interaction.user.roles):
+			await interaction.response.send_message("Brak uprawnień.", ephemeral=True)
+			return
+		if self.claimed_by:
+			await interaction.response.send_message(f"Już przejęte przez {self.claimed_by.mention}.", ephemeral=True)
+			return
+		self.claimed_by = interaction.user
+		button.disabled = True
+		button.label = f"Przejęte przez {interaction.user.display_name}"
+		await interaction.response.edit_message(view=self)
+		await interaction.followup.send(f"Zgłoszenie przejął: {interaction.user.mention}", ephemeral=False)
+
+	@discord.ui.button(label="Zamknij zgłoszenie", style=discord.ButtonStyle.danger)
+	async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+		if not any(role.id in self.allowed_roles for role in interaction.user.roles):
+			await interaction.response.send_message("Brak uprawnień.", ephemeral=True)
+			return
+		await interaction.channel.delete()
 
 async def setup(bot):
-    await bot.add_cog(TicketSystem(bot))
+	await bot.add_cog(TicketSystem(bot))
