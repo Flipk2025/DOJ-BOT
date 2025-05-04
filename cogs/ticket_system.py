@@ -142,7 +142,8 @@ class TicketSystem(commands.Cog):
         channel = self.bot.get_channel(TICKET_CHANNEL_ID)
         if not channel:
             return
-        if any(msg.author == self.bot.user for msg in await channel.history(limit=10).flatten()):
+        msgs = [msg async for msg in channel.history(limit=10)]
+        if any(msg.author == self.bot.user for msg in msgs):
             return
         embed = discord.Embed(
             title="🎫 Otwórz zgłoszenie",
@@ -166,7 +167,6 @@ class TicketSystem(commands.Cog):
             if not config:
                 await interaction.response.send_message("Nieznany temat.", ephemeral=True)
                 return
-            # Tworzymy modal dynamicznie
             class DynamicModal(discord.ui.Modal, title=f"Zgłoszenie: {topic}"):
                 def __init__(self):
                     super().__init__()
@@ -174,17 +174,18 @@ class TicketSystem(commands.Cog):
                         self.add_item(discord.ui.TextInput(
                             custom_id=field['custom_id'], label=field['label'], style=field['style'], required=True
                         ))
+            # zapisz temat w obiekcie bot
+            self.bot._current_ticket_topic = topic
             await interaction.response.send_modal(DynamicModal())
-            # Przechowujemy temat i config w komponencie modal? użyj payload
-            interaction.client._current_topic = topic
 
-        # Obsługa przycisków w kanale tiketa
         if interaction.data.get('custom_id') in ('take_ticket', 'close_ticket'):
             channel = interaction.channel
-            perms = channel.permissions_for(interaction.user)
-            # sprawdź czy ma odpowiednią rolę
-            topic = getattr(self.bot, '_current_topic', None)
-            allowed_role = guild_ticket_config.get(topic, {}).get('role_id')
+            topic = getattr(self.bot, '_current_ticket_topic', None)
+            config = guild_ticket_config.get(topic)
+            if not config:
+                await interaction.response.send_message("Brak tematu zgłoszenia.", ephemeral=True)
+                return
+            allowed_role = config['role_id']
             if allowed_role not in [r.id for r in interaction.user.roles]:
                 await interaction.response.send_message("Brak uprawnień.", ephemeral=True)
                 return
@@ -194,31 +195,29 @@ class TicketSystem(commands.Cog):
                 return
             if interaction.data['custom_id'] == 'close_ticket':
                 await channel.send("✅ Zgłoszenie zamknięte.")
-                await channel.edit(reason="Ticket closed", permissions_overwrites={
-                    channel.guild.default_role: discord.PermissionOverwrite(view_channel=False)
-                })
+                perms = channel.overwrites
+                perms[channel.guild.default_role] = discord.PermissionOverwrite(view_channel=False)
+                await channel.edit(overwrites=perms)
                 await interaction.response.defer()
 
     @commands.Cog.listener()
     async def on_modal_submit(self, interaction: discord.Interaction):
-        topic = getattr(self.bot, '_current_topic', None)
+        topic = getattr(self.bot, '_current_ticket_topic', None)
         config = guild_ticket_config.get(topic)
-        # Tworzenie kanału ticket w kategorii domyślnej
-        category = interaction.guild.get_channel(interaction.guild.id)  # tu zmienna kategorii
+        category = interaction.guild.get_channel(TICKET_CATEGORY_ID)
         overwrites = {
             interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
             interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True)
         }
-        # dodaj obsługującą rolę
         overwrites[interaction.guild.get_role(config['role_id'])] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
         channel = await interaction.guild.create_text_channel(
             name=f"ticket-{interaction.user.name}", category=category, overwrites=overwrites
         )
-        # Wysyłamy dane
-        desc = "\n".join(f"**{k['label']}:** {interaction.data['components'][i]['components'][0]['value']}" \
-                         for i,k in enumerate(config['fields']))
+        desc = "\n".join(
+            f"**{field['label']}:** {interaction.data['components'][i]['components'][0]['value']}"
+            for i, field in enumerate(config['fields'])
+        )
         embed = discord.Embed(title=f"Nowe zgłoszenie: {topic}", description=desc, color=discord.Color.green())
-        # Przyciski
         view = discord.ui.View(timeout=None)
         view.add_item(discord.ui.Button(label="Przejmij Zgłoszenie", style=discord.ButtonStyle.green, custom_id="take_ticket"))
         view.add_item(discord.ui.Button(label="Zamknij Zgłoszenie", style=discord.ButtonStyle.green, custom_id="close_ticket"))
