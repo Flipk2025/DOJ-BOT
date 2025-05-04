@@ -142,6 +142,7 @@ class TicketSystem(commands.Cog):
         channel = self.bot.get_channel(TICKET_CHANNEL_ID)
         if not channel:
             return
+        # Pobierz wiadomości jako listę
         msgs = [msg async for msg in channel.history(limit=10)]
         if any(msg.author == self.bot.user for msg in msgs):
             return
@@ -149,7 +150,7 @@ class TicketSystem(commands.Cog):
             title="🎫 Otwórz zgłoszenie",
             description="Wybierz temat zgłoszenia", color=discord.Color.blurple()
         )
-        options = [discord.SelectOption(label=topic) for topic in guild_ticket_config]
+        options = [discord.SelectOption(label=topic) for topic in guild_ticket_config.keys()]
         view = discord.ui.View(timeout=None)
         view.add_item(discord.ui.Select(
             placeholder="Wybierz temat...",
@@ -161,7 +162,8 @@ class TicketSystem(commands.Cog):
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
-        if interaction.data.get('custom_id') == 'ticket_topic_select':
+        custom_id = interaction.data.get('custom_id')
+        if custom_id == 'ticket_topic_select':
             topic = interaction.data['values'][0]
             config = guild_ticket_config.get(topic)
             if not config:
@@ -174,12 +176,13 @@ class TicketSystem(commands.Cog):
                         self.add_item(discord.ui.TextInput(
                             custom_id=field['custom_id'], label=field['label'], style=field['style'], required=True
                         ))
-            # zapisz temat w obiekcie bot
+            # zapisz temat
             self.bot._current_ticket_topic = topic
             await interaction.response.send_modal(DynamicModal())
+            return
 
-        if interaction.data.get('custom_id') in ('take_ticket', 'close_ticket'):
-            channel = interaction.channel
+        # Obsługa przycisków
+        if custom_id in ('take_ticket', 'close_ticket'):
             topic = getattr(self.bot, '_current_ticket_topic', None)
             config = guild_ticket_config.get(topic)
             if not config:
@@ -189,16 +192,18 @@ class TicketSystem(commands.Cog):
             if allowed_role not in [r.id for r in interaction.user.roles]:
                 await interaction.response.send_message("Brak uprawnień.", ephemeral=True)
                 return
-            if interaction.data['custom_id'] == 'take_ticket':
+            channel = interaction.channel
+            if custom_id == 'take_ticket':
                 await channel.send(f"🔔 Zgłoszenie przejął: {interaction.user.mention}")
                 await interaction.response.defer()
                 return
-            if interaction.data['custom_id'] == 'close_ticket':
+            if custom_id == 'close_ticket':
                 await channel.send("✅ Zgłoszenie zamknięte.")
                 perms = channel.overwrites
                 perms[channel.guild.default_role] = discord.PermissionOverwrite(view_channel=False)
                 await channel.edit(overwrites=perms)
                 await interaction.response.defer()
+                return
 
     @commands.Cog.listener()
     async def on_modal_submit(self, interaction: discord.Interaction):
@@ -210,7 +215,7 @@ class TicketSystem(commands.Cog):
             interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True)
         }
         overwrites[interaction.guild.get_role(config['role_id'])] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
-        channel = await interaction.guild.create_text_channel(
+        ticket_channel = await interaction.guild.create_text_channel(
             name=f"ticket-{interaction.user.name}", category=category, overwrites=overwrites
         )
         desc = "\n".join(
@@ -220,9 +225,9 @@ class TicketSystem(commands.Cog):
         embed = discord.Embed(title=f"Nowe zgłoszenie: {topic}", description=desc, color=discord.Color.green())
         view = discord.ui.View(timeout=None)
         view.add_item(discord.ui.Button(label="Przejmij Zgłoszenie", style=discord.ButtonStyle.green, custom_id="take_ticket"))
-        view.add_item(discord.ui.Button(label="Zamknij Zgłoszenie", style=discord.ButtonStyle.green, custom_id="close_ticket"))
-        await channel.send(content=f"{interaction.user.mention} <@&{config['role_id']}>", embed=embed, view=view)
-        await interaction.response.send_message(f"Utworzono kanał: {channel.mention}", ephemeral=True)
+        view.add_item(discord.ui.Button(label="Zamknij Zgłoszenie", style=discord.ButtonStyle.red, custom_id="close_ticket"))
+        await ticket_channel.send(content=f"{interaction.user.mention} <@&{config['role_id']}", embed=embed, view=view)
+        await interaction.response.send_message(f"Utworzono kanał: {ticket_channel.mention}", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(TicketSystem(bot))
