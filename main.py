@@ -2,7 +2,6 @@ import os
 from dotenv import load_dotenv
 import discord
 from discord.ext import commands
-from keep_alive import keep_alive
 
 # Load environment variables
 load_dotenv()
@@ -35,6 +34,8 @@ async def setup_hook():
 		print(f"❌ Błąd synchronizacji komend: {e}")
 	print("🧩 Wszystkie cogi załadowane")
 
-# Start
-keep_alive()
-bot.run(os.getenv("TOKEN"))
+token = os.getenv("TOKEN")
+
+if __name__ == "__main__":
+    keep_alive.run()  # jeśli potrzebujesz
+    client.run(token)
