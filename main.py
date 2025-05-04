@@ -1,7 +1,3 @@
-import keep_alive
-
-keep_alive.run()
-
 import os
 from dotenv import load_dotenv
 import discord
