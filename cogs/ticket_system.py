@@ -12,6 +12,18 @@ TICKET_CATEGORY_ID = 1334881156574871582  # ID kategorii dla ticketów
 
 # Konfiguracja typów ticketów
 TICKET_TYPES = {
+	"ranga": {
+		"label": "Wniosek o przyznanie rangi",
+		"handler_roles": [1342200180052590642],  # pingowane
+		"viewer_roles": [1334881150828806188], # tylko dostęp
+		"fields": [
+			("Imię i nazwisko (IC)", "np. John Doe", True),
+			("Numer SSN", "np. 54175", True),
+			("Ranga do dodania", "np. Właściciel Firmy, LSPD, USMS, Adwokat, DOJ", True),
+			("Numer odznaki/legitymacni (Jeśli dotyczy)", "Napisz swój nr. odznaki/legitymacji jeśli masz", False),
+			("Inne uwagi", "POLE NIEOBOWIĄSKOWE", False)
+		]
+	},
 	"dane": {
 		"label": "Zmiana Danych",
 		"handler_roles": [1368498015702351954],  # pingowane
@@ -76,7 +88,7 @@ TICKET_TYPES = {
 			("Imię i nazwisko (IC)", "np. John Doe", True),
 			("Numer SSN", "np. 54175", True),
 			("Dane funkcjonariusza/urzędnika", "np. Samuel King", True),
-			("Nr. odznaki/legitymaci i Jednoska/Wydział", "np. Samuel King LSPD, Mateo Smith FIB", True),
+			("Nr. odznaki/legitymaci i Jednoska/Wydział", "np. 145 - LSPD, 14 - FIB, 31 - DOJ", True),
 			("Powód skargi", "Opisz co jest powodem skargi", True),
 			("Załączniki (Opcjonalnie)", "np. nagrania itp.", True)
 		]
