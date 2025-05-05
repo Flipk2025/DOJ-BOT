@@ -3,7 +3,10 @@ from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 from keep_alive import keep_alive
+
+# Start serwera keep-alive
 keep_alive()
+
 # Ładowanie zmiennych środowiskowych
 load_dotenv()
 
@@ -35,8 +38,8 @@ async def setup_hook():
         print(f"❌ Błąd synchronizacji komend: {e}")
     print("🧩 Wszystkie cogi załadowane")
 
+# Pobranie tokenu i uruchomienie bota
 token = os.getenv("TOKEN")
 
 if __name__ == "__main__":
-    keep_alive.start()  # Utrzymanie bota przy życiu
     bot.run(token)
