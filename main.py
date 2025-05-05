@@ -2,8 +2,8 @@ import os
 from dotenv import load_dotenv
 import discord
 from discord.ext import commands
-import keep_alive  # Importujemy nasz plik keep_alive.py
-
+from keep_alive import keep_alive
+keep_alive()
 # Ładowanie zmiennych środowiskowych
 load_dotenv()
 
