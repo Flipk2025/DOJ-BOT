@@ -98,7 +98,7 @@ TICKET_TYPES = {
 	}
 }
 
-class TicketSystem(commands.Cog):
+class SprawySystem(commands.Cog):
 	def __init__(self, bot):
 		self.bot = bot
 
@@ -220,4 +220,4 @@ class TicketControlView(discord.ui.View):
 		await interaction.channel.delete()
 
 async def setup(bot):
-	await bot.add_cog(TicketSystem(bot))
+	await bot.add_cog(SprawySystem(bot))
