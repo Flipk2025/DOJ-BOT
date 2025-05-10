@@ -79,4 +79,5 @@ class Rozprawa(commands.Cog):
         )
 
 async def setup(bot: commands.Bot):
+    print("Komenda rozprawa została wywołana.")
     await bot.add_cog(Rozprawa(bot))
