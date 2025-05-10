@@ -29,9 +29,13 @@ class Rozprawa(commands.Cog):
         tryb: str,
         oskarzeni: str
     ):
+        # ID roli uprawnionej
         allowed_role_id = 1334892405035372564
         if allowed_role_id not in [role.id for role in interaction.user.roles]:
-            await interaction.response.send_message("Nie masz uprawnień do użycia tej komendy.", ephemeral=True)
+            await interaction.response.send_message(
+                "Nie posiadasz uprawnień do użycia tej komendy.",
+                ephemeral=True
+            )
             return
 
         # Parsowanie daty i godziny
@@ -39,15 +43,23 @@ class Rozprawa(commands.Cog):
             dt_obj = datetime.strptime(f"{data} {godzina}", "%d/%m/%Y %H:%M")
             timestamp = int(dt_obj.replace(tzinfo=timezone.utc).timestamp())
         except ValueError:
-            await interaction.response.send_message("Błąd formatu daty lub godziny. Użyj DD/MM/RRRR i HH:MM.", ephemeral=True)
+            await interaction.response.send_message(
+                "Błąd formatu daty lub godziny. Użyj DD/MM/RRRR i HH:MM.",
+                ephemeral=True
+            )
             return
 
-        # Pobieranie kanału
-        target_channel = self.bot.get_channel(1370809492283064350)
+        # ID kanału, do którego trafi ogłoszenie
+        court_channel_id = 1364172834183708693  # ← tu wstaw swój ID kanału
+        target_channel = self.bot.get_channel(court_channel_id)
         if target_channel is None:
-            await interaction.response.send_message("Nie znaleziono kanału sądowego.", ephemeral=True)
+            await interaction.response.send_message(
+                "Nie znaleziono kanału sądowego.",
+                ephemeral=True
+            )
             return
 
+        # Budowanie embedu
         embed = discord.Embed(
             title="📅 TERMIN ROZPRAWY",
             color=discord.Color.dark_red()
@@ -61,11 +73,16 @@ class Rozprawa(commands.Cog):
         embed.set_thumbnail(url="attachment://sąd.png")
         embed.set_footer(text="Sąd Stanowy San Andreas")
 
-        embed.set_thumbnail(url="attachment://sąd.png")
+        file = discord.File("sąd.png", filename="sąd.png")
 
-        await target_channel.send(content="``` ```", embed=embed, file=file)
+        # Wysyłamy blok kodu przed embedem
+        await target_channel.send("```TERMIN ROZPRAWY```")
+        # Wysyłamy embed z „logo” i wzmianką oskarżonych
+        await target_channel.send(content=oskarzeni, embed=embed, file=file)
+        # Wysyłamy pusty blok kodu po embedzie
         await target_channel.send("``` ```")
 
+        # Potwierdzenie w ephemeralu
         await interaction.response.send_message(
             f"Rozprawa ogłoszona na kanale {target_channel.mention}.",
             ephemeral=True
