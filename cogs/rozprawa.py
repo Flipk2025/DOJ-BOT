@@ -29,39 +29,37 @@ class Rozprawa(commands.Cog):
         tryb: str,
         oskarzeni: str
     ):
+        # 1) Autoryzacja
         allowed_role_id = 1334892405035372564
-        if allowed_role_id not in [role.id for role in interaction.user.roles]:
-            await interaction.response.send_message(
+        if allowed_role_id not in [r.id for r in interaction.user.roles]:
+            return await interaction.response.send_message(
                 "Nie masz uprawnień do użycia tej komendy.",
                 ephemeral=True
             )
-            return
 
-        # Parsowanie daty i godziny
+        # 2) Parsowanie daty+godziny
         try:
             dt_obj = datetime.strptime(f"{data} {godzina}", "%d/%m/%Y %H:%M")
             timestamp = int(dt_obj.replace(tzinfo=timezone.utc).timestamp())
         except ValueError:
-            await interaction.response.send_message(
-                "Błąd formatu daty lub godziny. Użyj DD/MM/RRRR i HH:MM.",
+            return await interaction.response.send_message(
+                "Błąd formatu. Użyj `DD/MM/RRRR` i `HH:MM`.",
                 ephemeral=True
             )
-            return
 
-        # Kanał sądowy
+        # 3) Kanał sądowy
         court_channel_id = 1364172834183708693
-        target_channel = self.bot.get_channel(court_channel_id)
-        if not target_channel:
-            await interaction.response.send_message(
+        court_channel = self.bot.get_channel(court_channel_id)
+        if not court_channel:
+            return await interaction.response.send_message(
                 "Nie znaleziono kanału sądowego.",
                 ephemeral=True
             )
-            return
 
-        # Budujemy embed, ale cała treść w opisie jako blok kodu
-        desc = (
+        # 4) Przygotowanie opisu jako blok kodu
+        opis = (
             "```"
-            f"\n# TERMIN ROZPRAWY\n\n"
+            "\n# TERMIN ROZPRAWY\n\n"
             f"### Data: {data} (<t:{timestamp}:R>)\n"
             f"### Godzina: {godzina}\n"
             f"### Sędzia prowadzący: {sedzia_prowadzacy}\n"
@@ -71,19 +69,27 @@ class Rozprawa(commands.Cog):
             "```"
         )
 
+        # 5) Tworzymy embed z ogólnymi informacjami
         embed = discord.Embed(
             title="📅 TERMIN ROZPRAWY",
-            description=desc,
+            description=opis,
             color=discord.Color.dark_red()
         )
-        # Logo w embedzie
+        # tu osadzamy logo w prawym górnym rogu
         embed.set_thumbnail(url="attachment://sąd.png")
         embed.set_footer(text="Sąd Stanowy San Andreas")
 
-        file = discord.File("sąd.png", filename="sąd.png")
-        await target_channel.send(embed=embed, file=file)
+        # 6) Załączamy plik i wysyłamy wszystko w jednej wiadomości
+        plik = discord.File("sąd.png", filename="sąd.png")
+        await court_channel.send(
+            content=oskarzeni,
+            embed=embed,
+            file=plik
+        )
+
+        # 7) Potwierdzenie użytkownikowi
         await interaction.response.send_message(
-            f"Rozprawa ogłoszona na kanale {target_channel.mention}.",
+            f"Rozprawa ogłoszona na {court_channel.mention}.",
             ephemeral=True
         )
 
