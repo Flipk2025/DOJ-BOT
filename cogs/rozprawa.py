@@ -12,12 +12,12 @@ class Rozprawa(commands.Cog):
         description="Ogłasza termin rozprawy sądowej"
     )
     @app_commands.describe(
-        data="Data rozprawy w formacie DD/MM/RRRR",
-        godzina="Godzina rozprawy w formacie HH:MM (24h)",
+        data="Data w formacie DD/MM/RRRR",
+        godzina="Godzina w formacie HH:MM (24h)",
         sedzia_prowadzacy="Sędzia prowadzący",
         sedzia_pomocniczy="Sędzia pomocniczy",
-        tryb="Tryb rozprawy (np. Zwykły, Przyspieszony)",
-        oskarzeni="Wzmiankuj oskarżonych (oddziel spacją, użyj @mention)"
+        tryb="Tryb rozprawy",
+        oskarzeni="Wzmiankuj oskarżonych"
     )
     async def rozprawa(
         self,
@@ -29,37 +29,28 @@ class Rozprawa(commands.Cog):
         tryb: str,
         oskarzeni: str
     ):
-        # 1) Sprawdzenie uprawnień
-        allowed_role_id = 1334892405035372564
-        if allowed_role_id not in [r.id for r in interaction.user.roles]:
-            return await interaction.response.send_message(
-                "Nie masz uprawnień do użycia tej komendy.",
-                ephemeral=True
-            )
+        # 1) sprawdzenie roli
+        allowed = 1334892405035372564
+        if allowed not in [r.id for r in interaction.user.roles]:
+            return await interaction.response.send_message("Brak uprawnień.", ephemeral=True)
 
-        # 2) Parsowanie daty i godziny oraz timestamp
+        # 2) parsowanie czasu
         try:
-            dt_obj = datetime.strptime(f"{data} {godzina}", "%d/%m/%Y %H:%M")
-            timestamp = int(dt_obj.replace(tzinfo=timezone.utc).timestamp())
-        except ValueError:
-            return await interaction.response.send_message(
-                "Błąd formatu. Użyj `DD/MM/RRRR` i `HH:MM`.",
-                ephemeral=True
-            )
+            dt = datetime.strptime(f"{data} {godzina}", "%d/%m/%Y %H:%M")
+            ts = int(dt.replace(tzinfo=timezone.utc).timestamp())
+        except:
+            return await interaction.response.send_message("Nieprawidłowy format daty/godziny.", ephemeral=True)
 
-        # 3) Pobranie kanału sądowego
-        court_channel = self.bot.get_channel(1364172834183708693)
-        if not court_channel:
-            return await interaction.response.send_message(
-                "Nie znaleziono kanału sądowego.",
-                ephemeral=True
-            )
+        # 3) kanał sądowy
+        chan = self.bot.get_channel(1364172834183708693)
+        if not chan:
+            return await interaction.response.send_message("Nie znalazłem kanału.", ephemeral=True)
 
-        # 4) Przygotowanie opisu embed (blok kodu)
-        opis = (
+        # 4) opis jako blok kodu
+        desc = (
             "```"
             "\n# TERMIN ROZPRAWY\n\n"
-            f"### Data: {data} (<t:{timestamp}:R>)\n"
+            f"### Data: {data} (<t:{ts}:R>)\n"
             f"### Godzina: {godzina}\n"
             f"### Sędzia prowadzący: {sedzia_prowadzacy}\n"
             f"### Sędzia pomocniczy: {sedzia_pomocniczy}\n"
@@ -68,29 +59,18 @@ class Rozprawa(commands.Cog):
             "```"
         )
 
-        # 5) Budowa embedu
-        embed = discord.Embed(
-            title="📅 TERMIN ROZPRAWY",
-            description=opis,
-            color=discord.Color.dark_red()
-        )
-        # <-- logo w embedzie jako thumbnail
-        embed.set_thumbnail(url="attachment://sąd.png")
+        # 5) budujemy embed z logo obok tytułu
+        embed = discord.Embed(color=discord.Color.dark_red())
+        embed.set_author(name="📅 TERMIN ROZPRAWY", icon_url="attachment://sąd.png")
+        embed.description = desc
         embed.set_footer(text="Sąd Stanowy San Andreas")
 
-        # 6) Załączenie pliku i wysłanie raz
+        # 6) załączamy plik i wysyłamy JEDNYM send()
         plik = discord.File("sąd.png", filename="sąd.png")
-        await court_channel.send(
-            content=oskarzeni,
-            embed=embed,
-            file=plik
-        )
+        await chan.send(embed=embed, file=plik)
 
-        # 7) Feedback dla wywołującego
-        await interaction.response.send_message(
-            f"Rozprawa ogłoszona na {court_channel.mention}.",
-            ephemeral=True
-        )
+        # 7) potwierdzenie
+        await interaction.response.send_message(f"Ogłoszono rozprawę na {chan.mention}.", ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Rozprawa(bot))
