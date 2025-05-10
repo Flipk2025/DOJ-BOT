@@ -57,7 +57,7 @@ class Rozprawa(commands.Cog):
 
         # Komponujemy treść wiadomości
         content = (
-            "```\n"
+            "``` ```\n"
             "# TERMIN ROZPRAWY\n\n"
             f"### Data: {data} (<t:{timestamp}:R>)\n"
             f"### Godzina: {godzina}\n"
@@ -65,7 +65,7 @@ class Rozprawa(commands.Cog):
             f"### Sędzia pomocniczy: {sedzia_pomocniczy}\n"
             f"### Tryb Rozprawy: {tryb}\n"
             f"### Oskarżony: {oskarzeni}\n"
-            "```\n"
+            "``` ```\n"
             f"||<@&1370830123523379210>||"
         )
 
