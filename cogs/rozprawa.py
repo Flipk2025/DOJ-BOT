@@ -29,7 +29,7 @@ class Rozprawa(commands.Cog):
         tryb: str,
         oskarzeni: str
     ):
-        # 1) Autoryzacja
+        # 1) Sprawdzenie uprawnień
         allowed_role_id = 1334892405035372564
         if allowed_role_id not in [r.id for r in interaction.user.roles]:
             return await interaction.response.send_message(
@@ -37,7 +37,7 @@ class Rozprawa(commands.Cog):
                 ephemeral=True
             )
 
-        # 2) Parsowanie daty+godziny
+        # 2) Parsowanie daty i godziny oraz timestamp
         try:
             dt_obj = datetime.strptime(f"{data} {godzina}", "%d/%m/%Y %H:%M")
             timestamp = int(dt_obj.replace(tzinfo=timezone.utc).timestamp())
@@ -47,16 +47,15 @@ class Rozprawa(commands.Cog):
                 ephemeral=True
             )
 
-        # 3) Kanał sądowy
-        court_channel_id = 1364172834183708693
-        court_channel = self.bot.get_channel(court_channel_id)
+        # 3) Pobranie kanału sądowego
+        court_channel = self.bot.get_channel(1364172834183708693)
         if not court_channel:
             return await interaction.response.send_message(
                 "Nie znaleziono kanału sądowego.",
                 ephemeral=True
             )
 
-        # 4) Przygotowanie opisu jako blok kodu
+        # 4) Przygotowanie opisu embed (blok kodu)
         opis = (
             "```"
             "\n# TERMIN ROZPRAWY\n\n"
@@ -69,17 +68,17 @@ class Rozprawa(commands.Cog):
             "```"
         )
 
-        # 5) Tworzymy embed z ogólnymi informacjami
+        # 5) Budowa embedu
         embed = discord.Embed(
             title="📅 TERMIN ROZPRAWY",
             description=opis,
             color=discord.Color.dark_red()
         )
-        # tu osadzamy logo w prawym górnym rogu
+        # <-- logo w embedzie jako thumbnail
         embed.set_thumbnail(url="attachment://sąd.png")
         embed.set_footer(text="Sąd Stanowy San Andreas")
 
-        # 6) Załączamy plik i wysyłamy wszystko w jednej wiadomości
+        # 6) Załączenie pliku i wysłanie raz
         plik = discord.File("sąd.png", filename="sąd.png")
         await court_channel.send(
             content=oskarzeni,
@@ -87,7 +86,7 @@ class Rozprawa(commands.Cog):
             file=plik
         )
 
-        # 7) Potwierdzenie użytkownikowi
+        # 7) Feedback dla wywołującego
         await interaction.response.send_message(
             f"Rozprawa ogłoszona na {court_channel.mention}.",
             ephemeral=True
