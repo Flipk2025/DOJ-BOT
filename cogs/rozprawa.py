@@ -58,17 +58,13 @@ class Rozprawa(commands.Cog):
         embed.add_field(name="🧑‍⚖️ Sędzia pomocniczy", value=sedzia_pomocniczy, inline=False)
         embed.add_field(name="📂 Tryb Rozprawy", value=tryb, inline=False)
         embed.add_field(name="👤 Oskarżony", value=oskarzeni, inline=False)
-        embed.set_image(url="attachment://sąd.png")
+        embed.set_thumbnail(url="attachment://sąd.png")
         embed.set_footer(text="Sąd Stanowy San Andreas")
 
         file = discord.File("sąd.png", filename="sąd.png")
 
-        await target_channel.send(
-            content=f"```\nTERMIN ROZPRAWY\n```",
-            embed=embed,
-            file=file
-        )
-        await target_channel.send("``` ```")  # pusta linia po embedzie
+        await target_channel.send(content="``` ```", embed=embed, file=file)
+        await target_channel.send("``` ```")
 
         await interaction.response.send_message(
             f"Rozprawa ogłoszona na kanale {target_channel.mention}.",
