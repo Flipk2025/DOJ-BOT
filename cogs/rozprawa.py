@@ -29,28 +29,37 @@ class Rozprawa(commands.Cog):
         tryb: str,
         oskarzeni: str
     ):
-        # 1) sprawdzenie roli
-        allowed = 1334892405035372564
-        if allowed not in [r.id for r in interaction.user.roles]:
-            return await interaction.response.send_message("Brak uprawnień.", ephemeral=True)
+        # Sprawdzenie uprawnień
+        allowed_role_id = 1334892405035372564
+        if allowed_role_id not in [r.id for r in interaction.user.roles]:
+            return await interaction.response.send_message(
+                "Nie masz uprawnień do użycia tej komendy.",
+                ephemeral=True
+            )
 
-        # 2) parsowanie czasu
+        # Parsowanie daty i godziny
         try:
-            dt = datetime.strptime(f"{data} {godzina}", "%d/%m/%Y %H:%M")
-            ts = int(dt.replace(tzinfo=timezone.utc).timestamp())
-        except:
-            return await interaction.response.send_message("Nieprawidłowy format daty/godziny.", ephemeral=True)
+            dt_obj = datetime.strptime(f"{data} {godzina}", "%d/%m/%Y %H:%M")
+            timestamp = int(dt_obj.replace(tzinfo=timezone.utc).timestamp())
+        except ValueError:
+            return await interaction.response.send_message(
+                "Błąd formatu daty lub godziny. Użyj `DD/MM/RRRR` i `HH:MM`.",
+                ephemeral=True
+            )
 
-        # 3) kanał sądowy
-        chan = self.bot.get_channel(1364172834183708693)
-        if not chan:
-            return await interaction.response.send_message("Nie znalazłem kanału.", ephemeral=True)
+        # Kanał sądowy
+        court_channel = self.bot.get_channel(1370809492283064350)
+        if not court_channel:
+            return await interaction.response.send_message(
+                "Nie znaleziono kanału sądowego.",
+                ephemeral=True
+            )
 
-        # 4) opis jako blok kodu
-        desc = (
+        # Komponujemy jedną wiadomość z blokiem kodu
+        content = (
             "```"
             "\n# TERMIN ROZPRAWY\n\n"
-            f"### Data: {data} (<t:{ts}:R>)\n"
+            f"### Data: {data} (<t:{timestamp}:R>)\n"
             f"### Godzina: {godzina}\n"
             f"### Sędzia prowadzący: {sedzia_prowadzacy}\n"
             f"### Sędzia pomocniczy: {sedzia_pomocniczy}\n"
@@ -59,18 +68,11 @@ class Rozprawa(commands.Cog):
             "```"
         )
 
-        # 5) budujemy embed z logo obok tytułu
-        embed = discord.Embed(color=discord.Color.dark_red())
-        embed.set_author(name="📅 TERMIN ROZPRAWY", icon_url="attachment://sąd.png")
-        embed.description = desc
-        embed.set_footer(text="Sąd Stanowy San Andreas")
-
-        # 6) załączamy plik i wysyłamy JEDNYM send()
-        plik = discord.File("sąd.png", filename="sąd.png")
-        await chan.send(embed=embed, file=plik)
-
-        # 7) potwierdzenie
-        await interaction.response.send_message(f"Ogłoszono rozprawę na {chan.mention}.", ephemeral=True)
+        await court_channel.send(content)
+        await interaction.response.send_message(
+            f"Rozprawa ogłoszona na {court_channel.mention}.",
+            ephemeral=True
+        )
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Rozprawa(bot))
