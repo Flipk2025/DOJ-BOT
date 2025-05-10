@@ -9,6 +9,7 @@ keep_alive()
 
 # Ładowanie zmiennych środowiskowych
 load_dotenv()
+TOKEN = os.getenv("TOKEN")
 
 # Intencje
 intents = discord.Intents.default()
@@ -16,42 +17,46 @@ intents.message_content = True
 intents.guilds = True
 intents.members = True
 
-# Tworzymy instancję bota
-bot = commands.Bot(command_prefix="!", intents=intents)
+class SupremeCourtBot(commands.Bot):
+    def __init__(self):
+        super().__init__(
+            command_prefix="!",
+            intents=intents,
+            # wyłączamy automatyczne syncowanie cogs,
+            # będziemy robić to ręcznie w setup_hook
+            help_command=None  
+        )
 
-# Event on_ready
-@bot.event
-async def on_ready():
-    print(f"✅ Zalogowano jako {bot.user}")
+    async def setup_hook(self):
+        # 1) Ładujemy cogi
+        for filename in os.listdir("./cogs"):
+            if filename.endswith(".py") and not filename.startswith("__"):
+                ext = f"cogs.{filename[:-3]}"
+                try:
+                    await self.load_extension(ext)
+                    print(f"✅ Załadowano coga: {ext}")
+                except Exception as e:
+                    print(f"❌ Błąd ładowania coga {ext}: {e}")
 
-# Prosta komenda ping
-@bot.command()
-async def ping(ctx):
-    await ctx.send("Pong!")
+        # 2) Synchronizujemy slash-komendy
+        try:
+            synced = await self.tree.sync()
+            print(f"🔁 Slash commands synced: {len(synced)} komend")
+        except Exception as e:
+            print(f"❌ Błąd synchronizacji komend: {e}")
 
-# Auto ładowanie coga
-@bot.event
-async def setup_hook():
-    # Ładujemy wszystkie cogi w folderze "cogs"
-    for filename in os.listdir("./cogs"):
-        if filename.endswith(".py") and not filename.startswith("__"):
-            try:
-                await bot.load_extension(f"cogs.{filename[:-3]}")
-                print(f"✅ Załadowano coga: {filename}")
-            except Exception as e:
-                print(f"❌ Błąd ładowania coga {filename}: {e}")
+        print("🧩 Setup complete — bot is ready to serve!")
 
-    # Synchronizowanie komend
-    try:
-        synced = await bot.tree.sync()
-        print(f"🔁 Slash commands synced ({len(synced)} komend)")
-    except Exception as e:
-        print(f"❌ Błąd synchronizacji komend: {e}")
+    async def on_ready(self):
+        print(f"🚀 Zalogowano jako {self.user} (ID: {self.user.id})")
 
-    print("🧩 Wszystkie cogi załadowane")
-
-# Pobranie tokenu i uruchomienie bota
-token = os.getenv("TOKEN")
-
+# Tworzymy i uruchamiamy bota
 if __name__ == "__main__":
-    bot.run(token)
+    bot = SupremeCourtBot()
+
+    # zwykła tekstowa komenda dla testów
+    @bot.command(name="ping")
+    async def ping(ctx):
+        await ctx.send("Pong!")
+
+    bot.run(TOKEN)
