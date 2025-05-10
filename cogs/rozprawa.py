@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 class Rozprawa(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        # Flaga do śledzenia, czy już obsłużyliśmy interakcję
+        self._already_responded = set()
 
     @app_commands.command(name="rozprawa", description="Ogłasza termin rozprawy sądowej")
     @app_commands.describe(
@@ -22,7 +24,20 @@ class Rozprawa(commands.Cog):
         sedzia_prowadzacy: str, sedzia_pomocniczy: str,
         tryb: str, oskarzeni: str
     ):
-        print("🔔 /rozprawa callback")  # debug — ile razy?
+        print(f"🔔 /rozprawa callback - ID interakcji: {interaction.id}")
+        
+        # Sprawdź, czy już obsłużyliśmy tę interakcję
+        if interaction.id in self._already_responded:
+            print(f"⚠️ Interakcja {interaction.id} już została obsłużona - ignorowanie")
+            return
+            
+        # Zaznacz, że obsługujemy tę interakcję
+        self._already_responded.add(interaction.id)
+        
+        # Limit wielkości zbioru, aby uniknąć wycieków pamięci
+        if len(self._already_responded) > 1000:
+            self._already_responded.clear()
+        
         allowed_role_id = 1334892405035372564
         if allowed_role_id not in [r.id for r in interaction.user.roles]:
             return await interaction.response.send_message(
@@ -35,13 +50,13 @@ class Rozprawa(commands.Cog):
             return await interaction.response.send_message(
                 "Błędny format daty/godziny.", ephemeral=True
             )
-
+        
         court_channel = self.bot.get_channel(1370809492283064350)
         if not court_channel:
             return await interaction.response.send_message(
                 "Brak kanału.", ephemeral=True
             )
-
+        
         # Your content with ANSI-empty blocks if you want
         content = (
             "``` ```\n"
