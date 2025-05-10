@@ -57,6 +57,7 @@ class Rozprawa(commands.Cog):
 
         # Komponujemy jedną wiadomość z blokiem kodu
         content = (
+            "```\n"
             "```"
             "\n# TERMIN ROZPRAWY\n\n"
             f"### Data: {data} (<t:{timestamp}:R>)\n"
@@ -65,7 +66,9 @@ class Rozprawa(commands.Cog):
             f"### Sędzia pomocniczy: {sedzia_pomocniczy}\n"
             f"### Tryb Rozprawy: {tryb}\n"
             f"### Oskarżony: {oskarzeni}\n"
+            "```\n"
             "```"
+            f"\n||<@&1370830123523379210>||"
         )
 
         await court_channel.send(content)
