@@ -29,11 +29,10 @@ class Rozprawa(commands.Cog):
         tryb: str,
         oskarzeni: str
     ):
-        # ID roli uprawnionej
         allowed_role_id = 1334892405035372564
         if allowed_role_id not in [role.id for role in interaction.user.roles]:
             await interaction.response.send_message(
-                "Nie posiadasz uprawnień do użycia tej komendy.",
+                "Nie masz uprawnień do użycia tej komendy.",
                 ephemeral=True
             )
             return
@@ -49,40 +48,40 @@ class Rozprawa(commands.Cog):
             )
             return
 
-        # ID kanału, do którego trafi ogłoszenie
-        court_channel_id = 1364172834183708693  # ← tu wstaw swój ID kanału
+        # Kanał sądowy
+        court_channel_id = 1364172834183708693
         target_channel = self.bot.get_channel(court_channel_id)
-        if target_channel is None:
+        if not target_channel:
             await interaction.response.send_message(
                 "Nie znaleziono kanału sądowego.",
                 ephemeral=True
             )
             return
 
-        # Budowanie embedu
+        # Budujemy embed, ale cała treść w opisie jako blok kodu
+        desc = (
+            "```"
+            f"\n# TERMIN ROZPRAWY\n\n"
+            f"### Data: {data} (<t:{timestamp}:R>)\n"
+            f"### Godzina: {godzina}\n"
+            f"### Sędzia prowadzący: {sedzia_prowadzacy}\n"
+            f"### Sędzia pomocniczy: {sedzia_pomocniczy}\n"
+            f"### Tryb Rozprawy: {tryb}\n"
+            f"### Oskarżony: {oskarzeni}\n"
+            "```"
+        )
+
         embed = discord.Embed(
             title="📅 TERMIN ROZPRAWY",
+            description=desc,
             color=discord.Color.dark_red()
         )
-        embed.add_field(name="📌 Data", value=f"{data} (<t:{timestamp}:R>)", inline=False)
-        embed.add_field(name="⏰ Godzina", value=godzina, inline=False)
-        embed.add_field(name="⚖️ Sędzia prowadzący", value=sedzia_prowadzacy, inline=False)
-        embed.add_field(name="🧑‍⚖️ Sędzia pomocniczy", value=sedzia_pomocniczy, inline=False)
-        embed.add_field(name="📂 Tryb Rozprawy", value=tryb, inline=False)
-        embed.add_field(name="👤 Oskarżony", value=oskarzeni, inline=False)
+        # Logo w embedzie
         embed.set_thumbnail(url="attachment://sąd.png")
         embed.set_footer(text="Sąd Stanowy San Andreas")
 
         file = discord.File("sąd.png", filename="sąd.png")
-
-        # Wysyłamy blok kodu przed embedem
-        await target_channel.send("```TERMIN ROZPRAWY```")
-        # Wysyłamy embed z „logo” i wzmianką oskarżonych
-        await target_channel.send(content=oskarzeni, embed=embed, file=file)
-        # Wysyłamy pusty blok kodu po embedzie
-        await target_channel.send("``` ```")
-
-        # Potwierdzenie w ephemeralu
+        await target_channel.send(embed=embed, file=file)
         await interaction.response.send_message(
             f"Rozprawa ogłoszona na kanale {target_channel.mention}.",
             ephemeral=True
