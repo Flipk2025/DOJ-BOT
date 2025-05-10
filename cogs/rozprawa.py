@@ -61,7 +61,7 @@ class Rozprawa(commands.Cog):
         embed.set_thumbnail(url="attachment://sąd.png")
         embed.set_footer(text="Sąd Stanowy San Andreas")
 
-        file = discord.File("sąd.png", filename="sąd.png")
+        embed.set_thumbnail(url="attachment://sąd.png")
 
         await target_channel.send(content="``` ```", embed=embed, file=file)
         await target_channel.send("``` ```")
