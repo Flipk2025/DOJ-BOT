@@ -55,22 +55,25 @@ class Rozprawa(commands.Cog):
                 ephemeral=True
             )
 
-        # Komponujemy jedną wiadomość z blokiem kodu
+        # Komponujemy treść wiadomości
         content = (
-            "``` ```\n"
-            "\n# TERMIN ROZPRAWY\n\n"
+            "```\n"
+            "# TERMIN ROZPRAWY\n\n"
             f"### Data: {data} (<t:{timestamp}:R>)\n"
             f"### Godzina: {godzina}\n"
             f"### Sędzia prowadzący: {sedzia_prowadzacy}\n"
             f"### Sędzia pomocniczy: {sedzia_pomocniczy}\n"
             f"### Tryb Rozprawy: {tryb}\n"
             f"### Oskarżony: {oskarzeni}\n"
-            "``` ```\n"
-            f"\n||<@&1370830123523379210>||"
+            "```\n"
+            f"||<@&1370830123523379210>||"
         )
 
+        # Wysyłamy ogłoszenie na kanał sądowy
         await court_channel.send(content)
-        await interaction.response.send_message(
+
+        # Potwierdzenie dla użytkownika
+        return await interaction.response.send_message(
             f"Rozprawa ogłoszona na {court_channel.mention}.",
             ephemeral=True
         )
