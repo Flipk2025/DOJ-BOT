@@ -34,36 +34,37 @@ class Rozprawa(commands.Cog):
             await interaction.response.send_message("Nie masz uprawnień do użycia tej komendy.", ephemeral=True)
             return
 
-        # Parsowanie daty i czasu
+        # Parsowanie daty i godziny
         try:
             dt_obj = datetime.strptime(f"{data} {godzina}", "%d/%m/%Y %H:%M")
             timestamp = int(dt_obj.replace(tzinfo=timezone.utc).timestamp())
-            czas_info = f"(<t:{timestamp}:R>)"
         except ValueError:
             await interaction.response.send_message("Błąd formatu daty lub godziny. Użyj DD/MM/RRRR i HH:MM.", ephemeral=True)
             return
 
+        # Pobieranie kanału
         target_channel = self.bot.get_channel(1370809492283064350)
         if target_channel is None:
             await interaction.response.send_message("Nie znaleziono kanału sądowego.", ephemeral=True)
             return
 
-        formatted_msg = (
-            f"```\n"
-            f"# TERMIN ROZPRAWY\n\n"
-            f"### Data: {data} {czas_info}\n"
-            f"### Godzina: {godzina}\n"
-            f"### Sędzia prowadzący: {sedzia_prowadzacy}\n"
-            f"### Sędzia pomocniczy: {sedzia_pomocniczy}\n"
-            f"### Tryb Rozprawy: {tryb}\n"
-            f"### Oskarżony: {oskarzeni}\n"
-            f"```"
+        embed = discord.Embed(
+            title="📅 TERMIN ROZPRAWY",
+            color=discord.Color.dark_red()
         )
+        embed.add_field(name="📌 Data", value=f"{data} (<t:{timestamp}:R>)", inline=False)
+        embed.add_field(name="⏰ Godzina", value=godzina, inline=False)
+        embed.add_field(name="⚖️ Sędzia prowadzący", value=sedzia_prowadzacy, inline=False)
+        embed.add_field(name="🧑‍⚖️ Sędzia pomocniczy", value=sedzia_pomocniczy, inline=False)
+        embed.add_field(name="📂 Tryb Rozprawy", value=tryb, inline=False)
+        embed.add_field(name="👤 Oskarżony", value=oskarzeni, inline=False)
+        embed.set_thumbnail(url="attachment://sąd.png")
+        embed.set_footer(text="Sąd Stanowy San Andreas")
 
         file = discord.File("sąd.png", filename="sąd.png")
 
-        await target_channel.send(content=formatted_msg + f"\n{oskarzeni}", file=file)
-        await interaction.response.send_message(f"Rozprawa ogłoszona na {target_channel.mention}.", ephemeral=True)
+        await target_channel.send(content=oskarzeni, embed=embed, file=file)
+        await interaction.response.send_message(f"Rozprawa ogłoszona na kanale {target_channel.mention}.", ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Rozprawa(bot))
