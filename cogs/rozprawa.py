@@ -55,9 +55,9 @@ class Rozprawa(commands.Cog):
                 ephemeral=True
             )
 
-        # Komponujemy treść wiadomości
+        # Komponujemy treść wiadomości z pustym blokiem kodu dla efektu paska
         content = (
-            "``` ```\n"
+            "```ansi\n\u001b[2m \u001b[0m```\n"
             "# TERMIN ROZPRAWY\n\n"
             f"### Data: {data} (<t:{timestamp}:R>)\n"
             f"### Godzina: {godzina}\n"
@@ -65,7 +65,7 @@ class Rozprawa(commands.Cog):
             f"### Sędzia pomocniczy: {sedzia_pomocniczy}\n"
             f"### Tryb Rozprawy: {tryb}\n"
             f"### Oskarżony: {oskarzeni}\n"
-            "``` ```\n"
+            "```ansi\n\u001b[2m \u001b[0m```\n"
             f"||<@&1370830123523379210>||"
         )
 
