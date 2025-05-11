@@ -8,7 +8,7 @@ class RoleMenu(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         # ID kanału, na który ma być wysłane osadzenie
-        self.target_channel_id = 1234567890123456789  # Zmień na właściwe ID kanału
+        self.target_channel_id = 1371007466535649320  # Zmień na właściwe ID kanału
 
         # ID ról do zarządzania
         self.role_ids = {
