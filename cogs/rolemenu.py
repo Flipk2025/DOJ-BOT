@@ -106,40 +106,74 @@ class RoleButton(discord.ui.Button):
         # Pobierz rolę z serwera
         role = interaction.guild.get_role(self.role_id)
         if not role:
-            await interaction.response.send_message(
-                f"Nie znaleziono roli o ID {self.role_id}. Skontaktuj się z administracją.",
-                ephemeral=True
-            )
+            try:
+                await interaction.response.send_message(
+                    f"Nie znaleziono roli o ID {self.role_id}. Skontaktuj się z administracją.",
+                    ephemeral=True
+                )
+            except discord.errors.HTTPException as e:
+                if e.code == 40060:  # Interaction has already been acknowledged
+                    await interaction.followup.send(
+                        f"Nie znaleziono roli o ID {self.role_id}. Skontaktuj się z administracją.",
+                        ephemeral=True
+                    )
             return
             
+        # Główna logika zarządzania rolami
         try:
-            # Sprawdź czy użytkownik ma już tę rolę
+            message = ""
+            # Operacja na roli
             if role in interaction.user.roles:
                 # Użytkownik ma rolę - usuń ją
                 await interaction.user.remove_roles(role)
-                await interaction.response.send_message(
-                    f"Usunięto rolę {role.mention}.",
-                    ephemeral=True
-                )
+                message = f"Usunięto rolę {role.mention}."
             else:
                 # Użytkownik nie ma roli - dodaj ją
                 await interaction.user.add_roles(role)
+                message = f"Dodano rolę {role.mention}."
+                
+            # Próba odpowiedzi na interakcję
+            try:
+                await interaction.response.send_message(message, ephemeral=True)
+            except discord.errors.HTTPException as e:
+                if e.code == 40060:  # Interaction has already been acknowledged
+                    await interaction.followup.send(message, ephemeral=True)
+                else:
+                    raise  # Przekaż inne błędy HTTP do zewnętrznego bloku except
+                    
+        except discord.Forbidden:
+            # Obsługa braku uprawnień
+            try:
                 await interaction.response.send_message(
-                    f"Dodano rolę {role.mention}.",
+                    "Bot nie ma uprawnień do zarządzania rolami. Skontaktuj się z administracją.",
                     ephemeral=True
                 )
-        except discord.Forbidden:
-            await interaction.response.send_message(
-                "Bot nie ma uprawnień do zarządzania rolami. Skontaktuj się z administracją.",
-                ephemeral=True
-            )
+            except discord.errors.HTTPException as e:
+                if e.code == 40060:
+                    await interaction.followup.send(
+                        "Bot nie ma uprawnień do zarządzania rolami. Skontaktuj się z administracją.",
+                        ephemeral=True
+                    )
         except Exception as e:
+            # Obsługa wszystkich innych błędów
             error_msg = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
             print(f"❌ Błąd podczas obsługi przycisku roli:\n{error_msg}")
-            await interaction.response.send_message(
-                "Wystąpił błąd podczas przetwarzania żądania.",
-                ephemeral=True
-            )
+            
+            try:
+                await interaction.response.send_message(
+                    "Wystąpił błąd podczas przetwarzania żądania.",
+                    ephemeral=True
+                )
+            except discord.errors.HTTPException as e:
+                if e.code == 40060:
+                    try:
+                        await interaction.followup.send(
+                            "Wystąpił błąd podczas przetwarzania żądania.",
+                            ephemeral=True
+                        )
+                    except:
+                        # Jeśli nawet followup nie działa, po prostu ignoruj
+                        pass
 
 class RoleView(discord.ui.View):
     def __init__(self, role_ids: dict):
