@@ -75,8 +75,17 @@ class Rozprawa(commands.Cog):
 
             # Spróbuj sparsować datę i godzinę
             try:
+                # Parsujemy datę jako lokalną (UTC+2), a następnie odejmujemy offset
+                # by uzyskać prawidłowy czas UTC
                 dt_obj = datetime.strptime(f"{data} {godzina}", "%d/%m/%Y %H:%M")
-                timestamp = int(dt_obj.replace(tzinfo=timezone.utc).timestamp())
+                
+                # Tworzony jest czas lokalny, trzeba odjąć 2 godziny, by uzyskać poprawny UTC
+                # dla Discord timestamp
+                poland_offset = timedelta(hours=2)  # UTC+2 dla czasu polskiego
+                utc_time = dt_obj - poland_offset
+                
+                # Konwersja na timestamp
+                timestamp = int(utc_time.replace(tzinfo=timezone.utc).timestamp())
             except ValueError:
                 await interaction.response.send_message(
                     "Błędny format daty/godziny.", ephemeral=True
