@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
-from discord import app_commands
 import traceback
+import asyncio
 
 class RoleMenuCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -23,34 +23,35 @@ class RoleMenuCog(commands.Cog):
     async def on_ready(self):
         print(f"✅ Moduł {self.__class__.__name__} jest gotowy!")
         
-    @app_commands.command(name="role", description="Wysyła menu wyboru ról powiadomień")
-    @app_commands.default_permissions(administrator=True)
-    async def wyslij_menu_rol(self, interaction: discord.Interaction):
-        """Komenda wysyłająca menu z przyciskami do zarządzania rolami"""
+        # Poczekaj 5 sekund, aby bot miał czas na załadowanie wszystkich danych
+        await asyncio.sleep(5)
+        
+        # Automatycznie wysyłaj menu ról przy starcie
+        await self.send_role_menu()
+    
+    async def send_role_menu(self):
+        """Funkcja wysyłająca menu z przyciskami do zarządzania rolami"""
         try:
-            # Zwolnij interakcję z timeout
-            await interaction.response.defer(ephemeral=True)
-            
             # Pobierz docelowy kanał
             target_channel = self.bot.get_channel(self.role_menu_channel_id)
             if not target_channel:
-                await interaction.followup.send(
-                    f"Nie mogę znaleźć kanału docelowego (ID: {self.role_menu_channel_id}). Skontaktuj się z administracją.",
-                    ephemeral=True
-                )
+                print(f"❌ Nie mogę znaleźć kanału docelowego (ID: {self.role_menu_channel_id}).")
                 return
             
             # Sprawdź, czy menu już istnieje na kanale
             # Przeszukaj ostatnie 100 wiadomości na kanale
+            menu_exists = False
             async for message in target_channel.history(limit=100):
                 # Jeśli wiadomość jest od bota i zawiera osadzenie z tytułem "Wybierz Powiadomienia"
                 if message.author.id == self.bot.user.id and message.embeds:
                     if message.embeds[0].title == "Wybierz Powiadomienia":
-                        await interaction.followup.send(
-                            f"Menu ról już istnieje na kanale {target_channel.mention}. [Link do wiadomości]({message.jump_url})",
-                            ephemeral=True
-                        )
-                        return
+                        print(f"✅ Menu ról już istnieje na kanale {target_channel.name}.")
+                        menu_exists = True
+                        break
+            
+            # Jeśli menu już istnieje, nie wysyłaj nowego
+            if menu_exists:
+                return
                 
             # Tworzenie osadzenia (embed)
             embed = discord.Embed(
@@ -84,20 +85,11 @@ class RoleMenuCog(commands.Cog):
             
             # Wysyłanie osadzenia z przyciskami na określony kanał
             await target_channel.send(embed=embed, view=view)
-            
-            # Informacja zwrotna dla użytkownika
-            await interaction.followup.send(
-                f"Menu ról zostało utworzone na kanale {target_channel.mention}.",
-                ephemeral=True
-            )
+            print(f"✅ Menu ról zostało utworzone na kanale {target_channel.name}.")
             
         except Exception as e:
             error_msg = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
-            print(f"❌ Błąd podczas przetwarzania komendy /role:\n{error_msg}")
-            await interaction.followup.send(
-                "Wystąpił błąd podczas przetwarzania komendy.",
-                ephemeral=True
-            )
+            print(f"❌ Błąd podczas wysyłania menu ról:\n{error_msg}")
 
 class RoleButton(discord.ui.Button):
     def __init__(self, role_id: int, label: str, emoji: str, style: discord.ButtonStyle):
