@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import traceback
-import asyncio
 
 class RoleMenuCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -10,17 +9,22 @@ class RoleMenuCog(commands.Cog):
         # ID ról do zarządzania
         self.role_ids = {
             "ping_rozprawy": 1370830123523379210,  # ID dla roli @Ping Rozprawy
-            "zmiany_prawne": 1371009145796562974,  # ID dla roli @Zmiany Prawne - zmień na właściwe ID
-            "listy_goncze": 1371009146295685242,   # ID dla roli @Listy Gończe - zmień na właściwe ID
+            "zmiany_prawne": 1371009145796562974,  # ID dla roli @Zmiany Prawne
+            "listy_goncze": 1371009146295685242,   # ID dla roli @Listy Gończe
         }
 
         # ID kanału, na który ma być wysłane menu ról
-        self.role_menu_channel_id = 1371007466535649320  # Zmień na właściwe ID kanału
+        self.role_menu_channel_id = 1371007466535649320
         
         # Dodaj widok z persistent buttons (przyciski działające po restarcie bota)
         self.bot.add_view(RoleView(self.role_ids))
         
+    @commands.Cog.listener()
+    async def on_ready(self):
+        print(f"✅ Moduł {self.__class__.__name__} jest gotowy!")
+        
     @app_commands.command(name="role", description="Wysyła menu wyboru ról powiadomień")
+    @app_commands.default_permissions(administrator=True)
     async def wyslij_menu_rol(self, interaction: discord.Interaction):
         """Komenda wysyłająca menu z przyciskami do zarządzania rolami"""
         try:
@@ -31,7 +35,7 @@ class RoleMenuCog(commands.Cog):
             target_channel = self.bot.get_channel(self.role_menu_channel_id)
             if not target_channel:
                 await interaction.followup.send(
-                    "Nie mogę znaleźć kanału docelowego. Skontaktuj się z administracją.",
+                    f"Nie mogę znaleźć kanału docelowego (ID: {self.role_menu_channel_id}). Skontaktuj się z administracją.",
                     ephemeral=True
                 )
                 return
