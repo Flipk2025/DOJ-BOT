@@ -60,7 +60,7 @@ class Rozprawa(commands.Cog):
         tryb: str, oskarzeni: str
     ):
         print(f"🔔 /rozprawa callback - ID interakcji: {interaction.id}")
-        
+
         # Opóźnienie, aby uniknąć problemów z wyścigiem
         await asyncio.sleep(0.1)
 
@@ -78,12 +78,12 @@ class Rozprawa(commands.Cog):
                 # Parsujemy datę jako lokalną (UTC+2), a następnie odejmujemy offset
                 # by uzyskać prawidłowy czas UTC
                 dt_obj = datetime.strptime(f"{data} {godzina}", "%d/%m/%Y %H:%M")
-                
+
                 # Tworzony jest czas lokalny, trzeba odjąć 2 godziny, by uzyskać poprawny UTC
                 # dla Discord timestamp
                 poland_offset = timedelta(hours=2)  # UTC+2 dla czasu polskiego
                 utc_time = dt_obj - poland_offset
-                
+
                 # Konwersja na timestamp
                 timestamp = int(utc_time.replace(tzinfo=timezone.utc).timestamp())
             except ValueError:
@@ -105,7 +105,7 @@ class Rozprawa(commands.Cog):
             content_hash = self._generate_content_hash(
                 data, godzina, sedzia_prowadzacy, sedzia_pomocniczy, tryb, oskarzeni
             )
-            
+
             # Sprawdź czy to nie duplikat
             if self._is_duplicate(content_hash, court_channel_id):
                 print(f"⚠️ Wykryto duplikat wiadomości [hash: {content_hash}] - ignoruję")
@@ -149,7 +149,7 @@ class Rozprawa(commands.Cog):
             # Pełne logowanie błędu
             error_msg = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
             print(f"❌ Błąd podczas przetwarzania komendy /rozprawa:\n{error_msg}")
-            
+
             try:
                 # Próba poinformowania użytkownika o błędzie
                 try:
