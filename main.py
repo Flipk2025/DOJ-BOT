@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 from keep_alive import keep_alive
+import sys
 
 # Start serwera keep-alive
 keep_alive()
@@ -38,11 +39,15 @@ class SupremeCourtBot(commands.Bot):
             except Exception as e:
                 print(f"❌ Błąd ładowania {ext}: {e}")
         
-        # 2) Synchronizacja slash-komend
+        # 2) Synchronizacja slash-komend tylko jeśli użyto flagi --sync
         try:
-            print("🔄 Synchronizacja komend slash...")
-            synced = await self.tree.sync()
-            print(f"🔁 Zsynchronizowano {len(synced)} komend")
+            if "--sync" in sys.argv:
+                print("🔄 Synchronizacja komend slash...")
+                synced = await self.tree.sync()
+                print(f"🔁 Zsynchronizowano {len(synced)} komend")
+                print("⚠️ Synchronizacja wykonana. Uruchom ponownie bez flagi --sync")
+                # Zakończ program po synchronizacji
+                await self.close()
         except Exception as e:
             print(f"❌ Błąd sync: {e}")
     
