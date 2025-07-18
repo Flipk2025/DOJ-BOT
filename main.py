@@ -7,6 +7,7 @@ import sys
 import time
 import random
 import logging
+from database import initialize_db
 
 # Configure logging
 logging.basicConfig(
@@ -82,12 +83,10 @@ class SupremeCourtBot(commands.Bot):
                 logger.warning(f"Rate limit hit, details: {error.response}")
 
 if __name__ == "__main__":
+    # Inicjalizacja bazy danych przy starcie
+    initialize_db()
+
     bot = SupremeCourtBot()
-    
-    # Dodaj proste ping, by upewnić się, że bot działa
-    @bot.command()
-    async def ping(ctx):
-        await ctx.send(f"Pong! Opóźnienie: {round(bot.latency * 1000)}ms")
     
     # Add reconnection logic with exponential backoff
     retry = True
