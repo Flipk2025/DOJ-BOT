@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+import re
 
 # Stałe role
 VIEWER_ROLE_ID = 1334881150858035290  # dostęp tylko, bez pisania
