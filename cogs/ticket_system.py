@@ -174,6 +174,8 @@ class TicketModal(discord.ui.Modal):
             if i >= 5:
                 break
             inp = discord.ui.TextInput(label=label, placeholder=placeholder, required=required)
+            # store the label text to avoid accessing deprecated attribute later
+            setattr(inp, "_label_text", label)
             self.inputs.append(inp)
             self.add_item(inp)
 
@@ -212,7 +214,8 @@ class TicketModal(discord.ui.Modal):
         )
 
         # Przygotowanie embed i view kontrolnego
-        embed_desc = "\n".join(f"**{inp.label}:** {inp.value}" for inp in self.inputs)
+        # Use stored label text to avoid deprecated access to TextInput.label
+        embed_desc = "\n".join(f"**{getattr(inp, '_label_text', getattr(inp, 'label', 'Pole'))}:** {inp.value}" for inp in self.inputs)
         view = TicketControlView(cfg['handler_roles'] + [WRITER_ROLE_ID])
         embed = discord.Embed(
             title="📩 Nowe zgłoszenie",
@@ -272,7 +275,12 @@ class TicketControlView(discord.ui.View):
 
         # Update button display
         button.disabled = True
+        # mark visually who claimed it
         button.label = f"Przejęte przez {interaction.user.display_name}"
+        try:
+            button.style = discord.ButtonStyle.secondary
+        except Exception:
+            pass
         await interaction.response.edit_message(view=self)
         await interaction.channel.send(f"Zgłoszenie przejął: {interaction.user.mention}")
 
@@ -303,30 +311,26 @@ class TicketControlView(discord.ui.View):
             if role:
                 overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=False)
 
-        # clear individual user perms except maybe keep them removed
-        await channel.edit(overwrites=overwrites)
+        # clear individual user perms and make all final edits in a single request to avoid rate-limits
         # annotate topic as closed
         topic = channel.topic or ""
         topic = re.sub(r"claimed_by:\d+", "", topic).strip()
         topic = (topic + " | " if topic and not topic.endswith("|") else topic)
         topic = f"{topic}status:closed"
-        await channel.edit(topic=topic)
 
         # rename and move channel to closed category (if configured)
+        original_name = channel.name
+        if not original_name.startswith("closed-"):
+            new_name = f"closed-{original_name}"
+        else:
+            new_name = original_name
+
+        closed_category = None
+        if CLOSED_TICKET_CATEGORY_ID and CLOSED_TICKET_CATEGORY_ID != 0:
+            closed_category = guild.get_channel(CLOSED_TICKET_CATEGORY_ID)
+
         try:
-            original_name = channel.name
-            if not original_name.startswith("closed-"):
-                new_name = f"closed-{original_name}"
-            else:
-                new_name = original_name
-
-            # get closed category (may be None if ID not set or invalid)
-            closed_category = None
-            if CLOSED_TICKET_CATEGORY_ID and CLOSED_TICKET_CATEGORY_ID != 0:
-                closed_category = guild.get_channel(CLOSED_TICKET_CATEGORY_ID)
-
-            # perform edit: name and category
-            await channel.edit(name=new_name, category=closed_category)
+            await channel.edit(overwrites=overwrites, topic=topic, name=new_name, category=closed_category)
         except Exception as e:
             # jeśli edycja nazwy/przeniesienie się nie powiodło, logujemy błąd ale nie przerywamy
             print(f"Błąd przy przenoszeniu/zamykaniu kanału: {e}")
