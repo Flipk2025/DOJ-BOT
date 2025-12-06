@@ -2,7 +2,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import re
-import asyncio
 
 # Stałe role
 VIEWER_ROLE_ID = 1334881150858035290  # dostęp tylko, bez pisania
@@ -11,9 +10,6 @@ WRITER_ROLE_ID = 1334881150925275194  # dostęp i pisanie
 # Kanały i kategorie
 TICKET_CHANNEL_ID = 1334881151935840325  # ID kanału z formularzem
 TICKET_CATEGORY_ID = 1334881156574871582  # ID kategorii dla ticketów
-# ID kategorii, do której będą przenoszone zamknięte tickety
-# --> WPISZ TUTAJ ID KATEGORII, np. CLOSED_TICKET_CATEGORY_ID = 133488999999999999
-CLOSED_TICKET_CATEGORY_ID = 1446958394341593282
 
 # Konfiguracja typów ticketów
 TICKET_TYPES = {
@@ -124,26 +120,6 @@ TICKET_TYPES = {
 # Helper: parsowanie claimed_by z topic
 CLAIMED_RE = re.compile(r"claimed_by:(\d+)")
 
-
-async def _safe_channel_edit(channel: discord.TextChannel, /, attempts: int = 3, delay: float = 1.0, **kwargs):
-    """Try to edit a channel with retries on transient errors.
-
-    Returns True on success, False if channel not found, raises on other persistent errors.
-    """
-    for attempt in range(attempts):
-        try:
-            await channel.edit(**kwargs)
-            return True
-        except discord.NotFound:
-            return False
-        except Exception as e:
-            # If it's the last attempt, re-raise so caller can log if needed
-            if attempt + 1 >= attempts:
-                raise
-            # exponential backoff before retrying
-            await asyncio.sleep(delay * (2 ** attempt))
-    return False
-
 class TicketSystem(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -195,8 +171,6 @@ class TicketModal(discord.ui.Modal):
             if i >= 5:
                 break
             inp = discord.ui.TextInput(label=label, placeholder=placeholder, required=required)
-            # store the label text to avoid accessing deprecated attribute later
-            setattr(inp, "_label_text", label)
             self.inputs.append(inp)
             self.add_item(inp)
 
@@ -235,8 +209,7 @@ class TicketModal(discord.ui.Modal):
         )
 
         # Przygotowanie embed i view kontrolnego
-        # Use stored label text to avoid deprecated access to TextInput.label
-        embed_desc = "\n".join(f"**{getattr(inp, '_label_text', getattr(inp, 'label', 'Pole'))}:** {inp.value}" for inp in self.inputs)
+        embed_desc = "\n".join(f"**{inp.label}:** {inp.value}" for inp in self.inputs)
         view = TicketControlView(cfg['handler_roles'] + [WRITER_ROLE_ID])
         embed = discord.Embed(
             title="📩 Nowe zgłoszenie",
@@ -279,22 +252,10 @@ class TicketControlView(discord.ui.View):
         if topic and not topic.endswith("|"):
             topic = topic + " | "
         topic = f"{topic}claimed_by:{user.id}"
-        try:
-            ok = await _safe_channel_edit(channel, topic=topic)
-            if not ok:
-                return
-        except Exception:
-            # if edits fail after retries, continue to attempt permissions change
-            pass
+        await channel.edit(topic=topic)
 
         # also ensure user has send permission explicitly
-        try:
-            await channel.set_permissions(user, view_channel=True, send_messages=True)
-        except discord.NotFound:
-            return
-        except Exception:
-            # ignore permission set failures
-            pass
+        await channel.set_permissions(user, view_channel=True, send_messages=True)
 
     @discord.ui.button(label="Przejmij zgłoszenie", style=discord.ButtonStyle.success)
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -303,36 +264,14 @@ class TicketControlView(discord.ui.View):
             await interaction.response.send_message("Brak uprawnień do przejęcia zgłoszenia.", ephemeral=True)
             return
 
-        # Defer the interaction briefly to avoid Unknown interaction if operations take time
-        try:
-            await interaction.response.defer(ephemeral=False)
-        except Exception:
-            # if defer fails (already responded), continue
-            pass
-
         # Set claimed_by in topic and adjust permissions
         await self._set_channel_claim(interaction.channel, interaction.user)
 
         # Update button display
         button.disabled = True
-        # mark visually who claimed it
         button.label = f"Przejęte przez {interaction.user.display_name}"
-        try:
-            button.style = discord.ButtonStyle.secondary
-        except Exception:
-            pass
-        # edit the original message view (may need followup if deferred earlier)
-        try:
-            await interaction.edit_original_response(view=self)
-        except Exception:
-            try:
-                await interaction.response.edit_message(view=self)
-            except Exception:
-                pass
-        try:
-            await interaction.channel.send(f"Zgłoszenie przejął: {interaction.user.mention}")
-        except Exception:
-            pass
+        await interaction.response.edit_message(view=self)
+        await interaction.channel.send(f"Zgłoszenie przejął: {interaction.user.mention}")
 
     @discord.ui.button(label="Zamknij zgłoszenie", style=discord.ButtonStyle.danger)
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -342,22 +281,6 @@ class TicketControlView(discord.ui.View):
 
         channel: discord.TextChannel = interaction.channel  # type: ignore
         guild = channel.guild
-
-        # try to fetch a fresh channel object; if it doesn't exist, abort gracefully
-        try:
-            channel = await guild.fetch_channel(channel.id)
-        except discord.NotFound:
-            await interaction.response.send_message("Kanał ticketu nie istnieje (był usunięty).", ephemeral=True)
-            return
-        except Exception:
-            # proceed with the existing channel object if fetch fails for other reasons
-            pass
-
-        # Defer to avoid interaction timeout if edits take some time
-        try:
-            await interaction.response.defer(ephemeral=False)
-        except Exception:
-            pass
 
         # Build closed overwrites: only VIEWER_ROLE_ID, WRITER_ROLE_ID and handler roles can view (but not write)
         overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False)}
@@ -372,54 +295,28 @@ class TicketControlView(discord.ui.View):
             overwrites[writer_role] = discord.PermissionOverwrite(view_channel=True, send_messages=False)
 
         # handler roles: allow view only
+        # Try to find handler roles from topic or from TICKET_TYPES by matching label in topic
+        # Easiest: grant view to any role IDs present in self.allowed_roles
         for rid in self.allowed_roles:
             role = guild.get_role(rid)
             if role:
                 overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=False)
 
-        # clear individual user perms and make all final edits in a single request to avoid rate-limits
+        # clear individual user perms except maybe keep them removed
+        await channel.edit(overwrites=overwrites)
         # annotate topic as closed
         topic = channel.topic or ""
         topic = re.sub(r"claimed_by:\d+", "", topic).strip()
         topic = (topic + " | " if topic and not topic.endswith("|") else topic)
         topic = f"{topic}status:closed"
-
-        # rename and move channel to closed category (if configured)
-        original_name = channel.name
-        if not original_name.startswith("closed-"):
-            new_name = f"closed-{original_name}"
-        else:
-            new_name = original_name
-
-        closed_category = None
-        if CLOSED_TICKET_CATEGORY_ID and CLOSED_TICKET_CATEGORY_ID != 0:
-            closed_category = guild.get_channel(CLOSED_TICKET_CATEGORY_ID)
-
-        try:
-            ok = await _safe_channel_edit(channel, overwrites=overwrites, topic=topic, name=new_name, category=closed_category)
-            if not ok:
-                await interaction.followup.send("Kanał nie został znaleziony podczas zamykania (był usunięty).", ephemeral=True)
-                return
-        except Exception as e:
-            # jeśli edycja nazwy/przeniesienie się nie powiodło, logujemy błąd ale nie przerywamy
-            print(f"Błąd przy przenoszeniu/zamykaniu kanału: {e}")
+        await channel.edit(topic=topic)
 
         # disable buttons
         for child in self.children:
             if isinstance(child, discord.ui.Button):
                 child.disabled = True
-        # edit the message view; if we already deferred, use followup/edit_original accordingly
-        try:
-            await interaction.edit_original_response(view=self)
-        except Exception:
-            try:
-                await interaction.response.edit_message(view=self)
-            except Exception:
-                pass
-        try:
-            await channel.send("🔒 Zgłoszenie zamknięte — kanał przemianowany i przeniesiony (jeśli podano kategorię).")
-        except Exception:
-            pass
+        await interaction.response.edit_message(view=self)
+        await channel.send("🔒 Zgłoszenie zamknięte — kanał zachowany, dostęp ograniczony.")
 
     # Slash commands are added in the Cog (below) — tutaj tylko przyciski
 
@@ -444,7 +341,8 @@ class TicketManagementCog(commands.Cog):
         # writer role
         if any(r.id == WRITER_ROLE_ID for r in user.roles):
             return True
-        # handler roles: check roles allowed from topic? Simpler: check if any role in TICKET_TYPES handler_roles
+        # handler roles: check roles allowed from topic? Simpler: check if any role in TICKET_TYPES appears in channel.topic label (complicated).
+        # We'll allow handlers if they have any role which is in any TICKET_TYPES handler_roles
         user_role_ids = {r.id for r in user.roles}
         handler_role_ids = set()
         for cfg in TICKET_TYPES.values():
@@ -468,21 +366,8 @@ class TicketManagementCog(commands.Cog):
             await interaction.response.send_message("Brak uprawnień do przekazania ticketu.", ephemeral=True)
             return
 
-        # Defer response because permission changes / edits may take time
-        try:
-            await interaction.response.defer(ephemeral=True)
-        except Exception:
-            pass
-
         # set new claimer, update permission
-        try:
-            await channel.set_permissions(member, view_channel=True, send_messages=True)
-        except discord.NotFound:
-            await interaction.followup.send("Nie można dodać uprawnień — kanał nie istnieje.", ephemeral=True)
-            return
-        except Exception:
-            # continue even if permission set fails
-            pass
+        await channel.set_permissions(member, view_channel=True, send_messages=True)
         # remove send rights from previous claimed user (if any)
         old_claim = await self._get_claimed_id(channel)
         if old_claim and old_claim != member.id:
@@ -496,22 +381,9 @@ class TicketManagementCog(commands.Cog):
         if topic and not topic.endswith("|"):
             topic = topic + " | "
         topic = f"{topic}claimed_by:{member.id}"
-        try:
-            ok = await _safe_channel_edit(channel, topic=topic)
-            if not ok:
-                await interaction.followup.send("Nie można zaktualizować ticketu — kanał nie istnieje.", ephemeral=True)
-                return
-        except Exception:
-            # ignore topic edit failures
-            pass
+        await channel.edit(topic=topic)
 
-        try:
-            await interaction.followup.send(f"✅ Ticket przekazany do {member.mention}.", ephemeral=True)
-        except Exception:
-            try:
-                await interaction.response.send_message(f"✅ Ticket przekazany do {member.mention}.", ephemeral=True)
-            except Exception:
-                pass
+        await interaction.response.send_message(f"✅ Ticket przekazany do {member.mention}.", ephemeral=True)
 
     @app_commands.command(name="dodaj-os", description="Dodaj osobę do ticketu (dostęp/wysłanie wiadomości)")
     @app_commands.describe(member="Osoba do dodania")
