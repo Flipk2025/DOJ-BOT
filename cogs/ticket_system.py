@@ -10,6 +10,9 @@ WRITER_ROLE_ID = 1334881150925275194  # dostęp i pisanie
 # Kanały i kategorie
 TICKET_CHANNEL_ID = 1334881151935840325  # ID kanału z formularzem
 TICKET_CATEGORY_ID = 1334881156574871582  # ID kategorii dla ticketów
+# ID kategorii, do której będą przenoszone zamknięte tickety
+# --> WPISZ TUTAJ ID KATEGORII, np. CLOSED_TICKET_CATEGORY_ID = 133488999999999999
+CLOSED_TICKET_CATEGORY_ID = 1446958394341593282
 
 # Konfiguracja typów ticketów
 TICKET_TYPES = {
@@ -295,8 +298,6 @@ class TicketControlView(discord.ui.View):
             overwrites[writer_role] = discord.PermissionOverwrite(view_channel=True, send_messages=False)
 
         # handler roles: allow view only
-        # Try to find handler roles from topic or from TICKET_TYPES by matching label in topic
-        # Easiest: grant view to any role IDs present in self.allowed_roles
         for rid in self.allowed_roles:
             role = guild.get_role(rid)
             if role:
@@ -311,12 +312,31 @@ class TicketControlView(discord.ui.View):
         topic = f"{topic}status:closed"
         await channel.edit(topic=topic)
 
+        # rename and move channel to closed category (if configured)
+        try:
+            original_name = channel.name
+            if not original_name.startswith("closed-"):
+                new_name = f"closed-{original_name}"
+            else:
+                new_name = original_name
+
+            # get closed category (may be None if ID not set or invalid)
+            closed_category = None
+            if CLOSED_TICKET_CATEGORY_ID and CLOSED_TICKET_CATEGORY_ID != 0:
+                closed_category = guild.get_channel(CLOSED_TICKET_CATEGORY_ID)
+
+            # perform edit: name and category
+            await channel.edit(name=new_name, category=closed_category)
+        except Exception as e:
+            # jeśli edycja nazwy/przeniesienie się nie powiodło, logujemy błąd ale nie przerywamy
+            print(f"Błąd przy przenoszeniu/zamykaniu kanału: {e}")
+
         # disable buttons
         for child in self.children:
             if isinstance(child, discord.ui.Button):
                 child.disabled = True
         await interaction.response.edit_message(view=self)
-        await channel.send("🔒 Zgłoszenie zamknięte — kanał zachowany, dostęp ograniczony.")
+        await channel.send("🔒 Zgłoszenie zamknięte — kanał przemianowany i przeniesiony (jeśli podano kategorię).")
 
     # Slash commands are added in the Cog (below) — tutaj tylko przyciski
 
@@ -341,8 +361,7 @@ class TicketManagementCog(commands.Cog):
         # writer role
         if any(r.id == WRITER_ROLE_ID for r in user.roles):
             return True
-        # handler roles: check roles allowed from topic? Simpler: check if any role in TICKET_TYPES appears in channel.topic label (complicated).
-        # We'll allow handlers if they have any role which is in any TICKET_TYPES handler_roles
+        # handler roles: check roles allowed from topic? Simpler: check if any role in TICKET_TYPES handler_roles
         user_role_ids = {r.id for r in user.roles}
         handler_role_ids = set()
         for cfg in TICKET_TYPES.values():
