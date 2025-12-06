@@ -258,10 +258,22 @@ class TicketControlView(discord.ui.View):
         if topic and not topic.endswith("|"):
             topic = topic + " | "
         topic = f"{topic}claimed_by:{user.id}"
-        await channel.edit(topic=topic)
+        try:
+            await channel.edit(topic=topic)
+        except discord.NotFound:
+            # channel no longer exists
+            return
+        except Exception:
+            # ignore other edit errors here; permissions will be attempted next
+            pass
 
         # also ensure user has send permission explicitly
-        await channel.set_permissions(user, view_channel=True, send_messages=True)
+        try:
+            await channel.set_permissions(user, view_channel=True, send_messages=True)
+        except discord.NotFound:
+            return
+        except Exception:
+            pass
 
     @discord.ui.button(label="Przejmij zgłoszenie", style=discord.ButtonStyle.success)
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -292,6 +304,16 @@ class TicketControlView(discord.ui.View):
 
         channel: discord.TextChannel = interaction.channel  # type: ignore
         guild = channel.guild
+
+        # try to fetch a fresh channel object; if it doesn't exist, abort gracefully
+        try:
+            channel = await guild.fetch_channel(channel.id)
+        except discord.NotFound:
+            await interaction.response.send_message("Kanał ticketu nie istnieje (był usunięty).", ephemeral=True)
+            return
+        except Exception:
+            # proceed with the existing channel object if fetch fails for other reasons
+            pass
 
         # Build closed overwrites: only VIEWER_ROLE_ID, WRITER_ROLE_ID and handler roles can view (but not write)
         overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False)}
@@ -331,6 +353,9 @@ class TicketControlView(discord.ui.View):
 
         try:
             await channel.edit(overwrites=overwrites, topic=topic, name=new_name, category=closed_category)
+        except discord.NotFound:
+            await interaction.response.send_message("Kanał nie został znaleziony podczas zamykania (był usunięty).", ephemeral=True)
+            return
         except Exception as e:
             # jeśli edycja nazwy/przeniesienie się nie powiodło, logujemy błąd ale nie przerywamy
             print(f"Błąd przy przenoszeniu/zamykaniu kanału: {e}")
@@ -404,7 +429,13 @@ class TicketManagementCog(commands.Cog):
         if topic and not topic.endswith("|"):
             topic = topic + " | "
         topic = f"{topic}claimed_by:{member.id}"
-        await channel.edit(topic=topic)
+        try:
+            await channel.edit(topic=topic)
+        except discord.NotFound:
+            await interaction.response.send_message("Nie można zaktualizować ticketu — kanał nie istnieje.", ephemeral=True)
+            return
+        except Exception:
+            pass
 
         await interaction.response.send_message(f"✅ Ticket przekazany do {member.mention}.", ephemeral=True)
 
